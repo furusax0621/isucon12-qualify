@@ -3,7 +3,6 @@ package isuports
 import (
 	"context"
 	"database/sql"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -1040,14 +1038,14 @@ func competitionScoreHandler(c echo.Context) error {
 	}
 	defer f.Close()
 
-	r := csv.NewReader(f)
-	headers, err := r.Read()
-	if err != nil {
-		return fmt.Errorf("error r.Read at header: %w", err)
-	}
-	if !reflect.DeepEqual(headers, []string{"player_id", "score"}) {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid CSV headers")
-	}
+	// r := csv.NewReader(f)
+	// headers, err := r.Read()
+	// if err != nil {
+	// 	return fmt.Errorf("error r.Read at header: %w", err)
+	// }
+	// if !reflect.DeepEqual(headers, []string{"player_id", "score"}) {
+	// 	return echo.NewHTTPError(http.StatusBadRequest, "invalid CSV headers")
+	// }
 
 	// / DELETEしたタイミングで参照が来ると空っぽのランキングになるのでロックする
 	fl, err := flockByTenantID(v.tenantID)
