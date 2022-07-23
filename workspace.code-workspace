@@ -1,0 +1,17 @@
+{
+    "folders": [
+        {
+            "path": "."
+        },
+        {
+            "name": "go",
+            "path": "./go/"
+        },
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/.git": true,
+            "go/": true,
+        }
+    }
+}
