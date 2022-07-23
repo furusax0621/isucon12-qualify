@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/goccy/go-json"
-	"github.com/gofrs/flock"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -464,25 +463,25 @@ func retrieveCompetition(ctx context.Context, tenantDB dbOrTx, id string) (*Comp
 
 // mapで大会を取得する
 // map[CompetitionID]*CompetitionRow
-func retrieveCompetitions(ctx context.Context, tenantDB dbOrTx, ids []string) (map[string]*CompetitionRow, error) {
-	ret := map[string]*CompetitionRow{}
-	if len(ids) == 0 {
-		return ret, nil
-	}
-	var cs []CompetitionRow
-	query := "SELECT * FROM competition WHERE id IN (?)"
-	query, args, err := sqlx.In(query, ids)
-	if err != nil {
-		return nil, fmt.Errorf("error generating SQL: %w", err)
-	}
-	if err := tenantDB.SelectContext(ctx, &cs, query, args...); err != nil {
-		return nil, fmt.Errorf("error Select competition: id=%s, %w", ids, err)
-	}
-	for _, c := range cs {
-		ret[c.ID] = &c
-	}
-	return ret, nil
-}
+// func retrieveCompetitions(ctx context.Context, tenantDB dbOrTx, ids []string) (map[string]*CompetitionRow, error) {
+// 	ret := map[string]*CompetitionRow{}
+// 	if len(ids) == 0 {
+// 		return ret, nil
+// 	}
+// 	var cs []CompetitionRow
+// 	query := "SELECT * FROM competition WHERE id IN (?)"
+// 	query, args, err := sqlx.In(query, ids)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("error generating SQL: %w", err)
+// 	}
+// 	if err := tenantDB.SelectContext(ctx, &cs, query, args...); err != nil {
+// 		return nil, fmt.Errorf("error Select competition: id=%s, %w", ids, err)
+// 	}
+// 	for _, c := range cs {
+// 		ret[c.ID] = &c
+// 	}
+// 	return ret, nil
+// }
 
 type PlayerScoreRow struct {
 	TenantID      int64  `db:"tenant_id"`
@@ -496,21 +495,21 @@ type PlayerScoreRow struct {
 }
 
 // 排他ロックのためのファイル名を生成する
-func lockFilePath(id int64) string {
-	tenantDBDir := getEnv("ISUCON_TENANT_DB_DIR", "../tenant_db")
-	return filepath.Join(tenantDBDir, fmt.Sprintf("%d.lock", id))
-}
+// func lockFilePath(id int64) string {
+// 	tenantDBDir := getEnv("ISUCON_TENANT_DB_DIR", "../tenant_db")
+// 	return filepath.Join(tenantDBDir, fmt.Sprintf("%d.lock", id))
+// }
 
 // 排他ロックする
-func flockByTenantID(tenantID int64) (io.Closer, error) {
-	p := lockFilePath(tenantID)
+// func flockByTenantID(tenantID int64) (io.Closer, error) {
+// 	p := lockFilePath(tenantID)
 
-	fl := flock.New(p)
-	if err := fl.Lock(); err != nil {
-		return nil, fmt.Errorf("error flock.Lock: path=%s, %w", p, err)
-	}
-	return fl, nil
-}
+// 	fl := flock.New(p)
+// 	if err := fl.Lock(); err != nil {
+// 		return nil, fmt.Errorf("error flock.Lock: path=%s, %w", p, err)
+// 	}
+// 	return fl, nil
+// }
 
 type TenantsAddHandlerResult struct {
 	Tenant TenantWithBilling `json:"tenant"`
@@ -1323,6 +1322,12 @@ func playerHandler(c echo.Context) error {
 	); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
+
+	competitionTitles := make(map[string]string, len(cs))
+	for _, c := range cs {
+		competitionTitles[c.ID] = c.Title
+	}
+
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
 	mu, ok := tenantDBLocks[v.tenantID]
 	if !ok {
@@ -1356,16 +1361,11 @@ func playerHandler(c echo.Context) error {
 		pss = append(pss, ps)
 	}
 
-	compIDs := make([]string, 0, len(cs))
-	for _, c := range cs {
-		compIDs = append(compIDs, c.ID)
-	}
-	compMap, err := retrieveCompetitions(ctx, tenantDB, compIDs)
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
-		if comp, ok := compMap[ps.CompetitionID]; ok {
+		if title, ok := competitionTitles[ps.CompetitionID]; ok {
 			psds = append(psds, PlayerScoreDetail{
-				CompetitionTitle: comp.Title,
+				CompetitionTitle: title,
 				Score:            ps.Score,
 			})
 		} else {
