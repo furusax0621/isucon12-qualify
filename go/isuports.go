@@ -1038,12 +1038,6 @@ func competitionScoreHandler(c echo.Context) error {
 	}
 	defer f.Close()
 
-	// / DELETEしたタイミングで参照が来ると空っぽのランキングになるのでロックする
-	fl, err := flockByTenantID(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error flockByTenantID: %w", err)
-	}
-	defer fl.Close()
 	csvHeaders := []string{
 		"player_id", "score",
 	}
@@ -1058,6 +1052,13 @@ func competitionScoreHandler(c echo.Context) error {
 	if err := dec.DecodeAll(&data); err != nil {
 		return fmt.Errorf("error reading csv DecodeAll: %w", err)
 	}
+
+	// / DELETEしたタイミングで参照が来ると空っぽのランキングになるのでロックする
+	fl, err := flockByTenantID(v.tenantID)
+	if err != nil {
+		return fmt.Errorf("error flockByTenantID: %w", err)
+	}
+	defer fl.Close()
 	playerScoreRows := []PlayerScoreRow{}
 	players := map[string]any{}
 	// 読み取った全行を逆順に処理
