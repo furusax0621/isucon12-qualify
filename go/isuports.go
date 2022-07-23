@@ -1380,7 +1380,11 @@ func competitionRankingHandler(c echo.Context) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&pss,
-		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num FROM player_score AS ps "+
+		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num"+
+			"FROM ( "+
+			"SELECT player_id, score FROM player_score "+
+			"WHERE NOT EXISTS (SELECT 1 FROM player_score sub WHERE player_score.player_id = sub.player_id AND player_score.row_num < sub.row_num) "+
+			") AS ps "+ // player_id ごとに最大のrow_numを持つレコードに絞る
 			"JOIN player AS p ON p.id = ps.player_id "+
 			"WHERE ps.tenant_id = ? AND ps.competition_id = ? ORDER BY ps.row_num DESC",
 		tenant.ID,
@@ -1389,14 +1393,14 @@ func competitionRankingHandler(c echo.Context) error {
 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 	}
 	ranks := make([]CompetitionRank, 0, len(pss))
-	scoredPlayerSet := make(map[string]struct{}, len(pss))
+	// scoredPlayerSet := make(map[string]struct{}, len(pss))
 	for _, ps := range pss {
-		// player_scoreが同一player_id内ではrow_numの降順でソートされているので
-		// 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
-		if _, ok := scoredPlayerSet[ps.PlayerID]; ok {
-			continue
-		}
-		scoredPlayerSet[ps.PlayerID] = struct{}{}
+		// // player_scoreが同一player_id内ではrow_numの降順でソートされているので
+		// // 現れたのが2回目以降のplayer_idはより大きいrow_numでスコアが出ているとみなせる
+		// if _, ok := scoredPlayerSet[ps.PlayerID]; ok {
+		// 	continue
+		// }
+		// scoredPlayerSet[ps.PlayerID] = struct{}{}
 		ranks = append(ranks, CompetitionRank{
 			Score:             ps.Score,
 			PlayerID:          ps.PlayerID,
