@@ -1387,7 +1387,7 @@ func competitionRankingHandler(c echo.Context) error {
 			"JOIN player AS p ON p.id = ps.player_id "+
 			"WHERE ps.tenant_id = ? AND ps.competition_id = ? "+
 			"ORDER BY ps.score DESC, ps.row_num ASC "+
-			"OFFSET ? LIMIT 100",
+			"LIMIT 100 OFFSET ? ",
 		tenant.ID,
 		competitionID,
 		rankAfter,
