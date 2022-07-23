@@ -29,6 +29,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+	headercsv "github.com/shogo82148/go-header-csv"
 )
 
 const (
@@ -1054,36 +1055,44 @@ func competitionScoreHandler(c echo.Context) error {
 		return fmt.Errorf("error flockByTenantID: %w", err)
 	}
 	defer fl.Close()
-	var rowNum int64
+	csvHeaders := []string{
+		"player_id", "score",
+	}
+	dec := headercsv.NewDecoder(f)
+	if err := dec.SetHeader(csvHeaders); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid CSV headers")
+	}
+	data := []struct {
+		PlayerID string `csv:"player_id"`
+		Score    string `csv:"score"`
+	}{}
+	if err := dec.DecodeAll(&data); err != nil {
+		return fmt.Errorf("error reading csv DecodeAll: %w", err)
+	}
 	playerScoreRows := []PlayerScoreRow{}
-	for {
-		rowNum++
-		row, err := r.Read()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return fmt.Errorf("error r.Read at rows: %w", err)
+	players := map[string]any{}
+	// 読み取った全行を逆順に処理
+	for i := len(data); i >= 0; i-- {
+		row := data[i]
+		// 既に追加済みだったら無視する！
+		if _, ok := players[data[i].PlayerID]; ok {
+			continue
 		}
-		if len(row) != 2 {
-			return fmt.Errorf("row must have two columns: %#v", row)
-		}
-		playerID, scoreStr := row[0], row[1]
-		if _, err := retrievePlayer(ctx, tenantDB, playerID); err != nil {
+		if _, err := retrievePlayer(ctx, tenantDB, row.PlayerID); err != nil {
 			// 存在しない参加者が含まれている
 			if errors.Is(err, sql.ErrNoRows) {
 				return echo.NewHTTPError(
 					http.StatusBadRequest,
-					fmt.Sprintf("player not found: %s", playerID),
+					fmt.Sprintf("player not found: %s", row.PlayerID),
 				)
 			}
 			return fmt.Errorf("error retrievePlayer: %w", err)
 		}
 		var score int64
-		if score, err = strconv.ParseInt(scoreStr, 10, 64); err != nil {
+		if score, err = strconv.ParseInt(row.Score, 10, 64); err != nil {
 			return echo.NewHTTPError(
 				http.StatusBadRequest,
-				fmt.Sprintf("error strconv.ParseUint: scoreStr=%s, %s", scoreStr, err),
+				fmt.Sprintf("error strconv.ParseUint: scoreStr=%s, %s", row.Score, err),
 			)
 		}
 		id, err := dispenseID(ctx)
@@ -1094,14 +1103,62 @@ func competitionScoreHandler(c echo.Context) error {
 		playerScoreRows = append(playerScoreRows, PlayerScoreRow{
 			ID:            id,
 			TenantID:      v.tenantID,
-			PlayerID:      playerID,
+			PlayerID:      row.PlayerID,
 			CompetitionID: competitionID,
 			Score:         score,
-			RowNum:        rowNum,
+			RowNum:        1,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		})
 	}
+
+	// var rowNum int64
+	// for {
+	// 	rowNum++
+	// 	row, err := r.Read()
+	// 	if err != nil {
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
+	// 		return fmt.Errorf("error r.Read at rows: %w", err)
+	// 	}
+	// 	if len(row) != 2 {
+	// 		return fmt.Errorf("row must have two columns: %#v", row)
+	// 	}
+	// 	playerID, scoreStr := row[0], row[1]
+	// 	if _, err := retrievePlayer(ctx, tenantDB, playerID); err != nil {
+	// 		// 存在しない参加者が含まれている
+	// 		if errors.Is(err, sql.ErrNoRows) {
+	// 			return echo.NewHTTPError(
+	// 				http.StatusBadRequest,
+	// 				fmt.Sprintf("player not found: %s", playerID),
+	// 			)
+	// 		}
+	// 		return fmt.Errorf("error retrievePlayer: %w", err)
+	// 	}
+	// 	var score int64
+	// 	if score, err = strconv.ParseInt(scoreStr, 10, 64); err != nil {
+	// 		return echo.NewHTTPError(
+	// 			http.StatusBadRequest,
+	// 			fmt.Sprintf("error strconv.ParseUint: scoreStr=%s, %s", scoreStr, err),
+	// 		)
+	// 	}
+	// 	id, err := dispenseID(ctx)
+	// 	if err != nil {
+	// 		return fmt.Errorf("error dispenseID: %w", err)
+	// 	}
+	// 	now := time.Now().Unix()
+	// 	playerScoreRows = append(playerScoreRows, PlayerScoreRow{
+	// 		ID:            id,
+	// 		TenantID:      v.tenantID,
+	// 		PlayerID:      playerID,
+	// 		CompetitionID: competitionID,
+	// 		Score:         score,
+	// 		RowNum:        rowNum,
+	// 		CreatedAt:     now,
+	// 		UpdatedAt:     now,
+	// 	})
+	// }
 
 	if _, err := tenantDB.ExecContext(
 		ctx,
