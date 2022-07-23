@@ -1253,7 +1253,7 @@ func playerHandler(c echo.Context) error {
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
-			return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, playerID=%s, %w", v.tenantID, c.ID, p.ID, err)
+			return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
 		}
 		pss = append(pss, ps)
 	}
