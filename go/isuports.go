@@ -1286,20 +1286,44 @@ func playerHandler(c echo.Context) error {
 	//	pss = append(pss, ps)
 	//}
 
+	//CREATE TABLE competition (
+	//  id VARCHAR(255) NOT NULL PRIMARY KEY,
+	//  tenant_id BIGINT NOT NULL,
+	//  title TEXT NOT NULL,
+	//  finished_at BIGINT NULL,
+	//  created_at BIGINT NOT NULL,
+	//  updated_at BIGINT NOT NULL
+	//);
+	//
+	//
+	//CREATE TABLE player_score (
+	//  id VARCHAR(255) NOT NULL PRIMARY KEY,
+	//  tenant_id BIGINT NOT NULL,
+	//  player_id VARCHAR(255) NOT NULL,
+	//  competition_id VARCHAR(255) NOT NULL,
+	//  score BIGINT NOT NULL,
+	//  row_num BIGINT NOT NULL,
+	//  created_at BIGINT NOT NULL,
+	//  updated_at BIGINT NOT NULL
+	//);
+
 	psds := make([]PlayerScoreDetail, 0, len(pss))
+	//
 
+	ph = []string{}
+	var args2 []interface{}
 	for _, ps := range pss {
+		args2 = append(args, ps.CompetitionID)
+		ph = append(ph, "?")
+	}
+	placeholder = strings.Join(ph, ",")
 
-		var c CompetitionRow
-		if err := tenantDB.GetContext(ctx, &c, "SELECT * FROM competition WHERE id = ?", ps.CompetitionID); err != nil {
-			return fmt.Errorf("error retrieveCompetition: %w", err)
-		}
-		psds = append(psds, PlayerScoreDetail{
-			CompetitionTitle: c.Title,
-			Score:            ps.Score,
-		})
+	c3 := []PlayerScoreDetail{}
+	if err := tenantDB.SelectContext(ctx, &c3, "select competition.title as competition_title, player_score.score from player_score join competition on competition_id = id where competition.id = IN ("+placeholder+")", args2...); err != nil {
+		return fmt.Errorf("error retrieveCompetition: %w", err)
 	}
 
+	psds = append(psds, c3...)
 	res := SuccessResult{
 		Status: true,
 		Data: PlayerHandlerResult{
