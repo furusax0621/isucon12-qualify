@@ -1380,7 +1380,7 @@ func competitionRankingHandler(c echo.Context) error {
 	if err := tenantDB.SelectContext(
 		ctx,
 		&pss,
-		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num"+
+		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num "+
 			"FROM ( "+
 			"SELECT player_id, score FROM player_score "+
 			"WHERE NOT EXISTS (SELECT 1 FROM player_score sub WHERE player_score.player_id = sub.player_id AND player_score.row_num < sub.row_num) "+
