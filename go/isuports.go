@@ -1038,15 +1038,6 @@ func competitionScoreHandler(c echo.Context) error {
 	}
 	defer f.Close()
 
-	// r := csv.NewReader(f)
-	// headers, err := r.Read()
-	// if err != nil {
-	// 	return fmt.Errorf("error r.Read at header: %w", err)
-	// }
-	// if !reflect.DeepEqual(headers, []string{"player_id", "score"}) {
-	// 	return echo.NewHTTPError(http.StatusBadRequest, "invalid CSV headers")
-	// }
-
 	// / DELETEしたタイミングで参照が来ると空っぽのランキングになるのでロックする
 	fl, err := flockByTenantID(v.tenantID)
 	if err != nil {
@@ -1109,54 +1100,6 @@ func competitionScoreHandler(c echo.Context) error {
 			UpdatedAt:     now,
 		})
 	}
-
-	// var rowNum int64
-	// for {
-	// 	rowNum++
-	// 	row, err := r.Read()
-	// 	if err != nil {
-	// 		if err == io.EOF {
-	// 			break
-	// 		}
-	// 		return fmt.Errorf("error r.Read at rows: %w", err)
-	// 	}
-	// 	if len(row) != 2 {
-	// 		return fmt.Errorf("row must have two columns: %#v", row)
-	// 	}
-	// 	playerID, scoreStr := row[0], row[1]
-	// 	if _, err := retrievePlayer(ctx, tenantDB, playerID); err != nil {
-	// 		// 存在しない参加者が含まれている
-	// 		if errors.Is(err, sql.ErrNoRows) {
-	// 			return echo.NewHTTPError(
-	// 				http.StatusBadRequest,
-	// 				fmt.Sprintf("player not found: %s", playerID),
-	// 			)
-	// 		}
-	// 		return fmt.Errorf("error retrievePlayer: %w", err)
-	// 	}
-	// 	var score int64
-	// 	if score, err = strconv.ParseInt(scoreStr, 10, 64); err != nil {
-	// 		return echo.NewHTTPError(
-	// 			http.StatusBadRequest,
-	// 			fmt.Sprintf("error strconv.ParseUint: scoreStr=%s, %s", scoreStr, err),
-	// 		)
-	// 	}
-	// 	id, err := dispenseID(ctx)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error dispenseID: %w", err)
-	// 	}
-	// 	now := time.Now().Unix()
-	// 	playerScoreRows = append(playerScoreRows, PlayerScoreRow{
-	// 		ID:            id,
-	// 		TenantID:      v.tenantID,
-	// 		PlayerID:      playerID,
-	// 		CompetitionID: competitionID,
-	// 		Score:         score,
-	// 		RowNum:        rowNum,
-	// 		CreatedAt:     now,
-	// 		UpdatedAt:     now,
-	// 	})
-	// }
 
 	if _, err := tenantDB.ExecContext(
 		ctx,
