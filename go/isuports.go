@@ -414,6 +414,28 @@ func retrieveCompetition(ctx context.Context, tenantDB dbOrTx, id string) (*Comp
 	return &c, nil
 }
 
+// mapで大会を取得する
+// map[CompetitionID]*CompetitionRow
+func retrieveCompetitions(ctx context.Context, tenantDB dbOrTx, ids []string) (map[string]*CompetitionRow, error) {
+	ret := map[string]*CompetitionRow{}
+	if len(ids) == 0 {
+		return ret, nil
+	}
+	var cs []CompetitionRow
+	query := "SELECT * FROM competition WHERE id IN (?)"
+	query, args, err := sqlx.In(query, ids)
+	if err != nil {
+		return nil, fmt.Errorf("error generating SQL: %w", err)
+	}
+	if err := tenantDB.GetContext(ctx, &cs, query, args...); err != nil {
+		return nil, fmt.Errorf("error Select competition: id=%s, %w", ids, err)
+	}
+	for _, c := range cs {
+		ret[c.ID] = &c
+	}
+	return ret, nil
+}
+
 type PlayerScoreRow struct {
 	TenantID      int64  `db:"tenant_id"`
 	ID            string `db:"id"`
@@ -1234,7 +1256,6 @@ func playerHandler(c echo.Context) error {
 	); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
-
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
 	fl, err := flockByTenantID(v.tenantID)
 	if err != nil {
@@ -1262,16 +1283,28 @@ func playerHandler(c echo.Context) error {
 		pss = append(pss, ps)
 	}
 
+	compIDs := make([]string, 0, len(cs))
+	for _, c := range cs {
+		compIDs = append(compIDs, c.ID)
+	}
+	compMap, err := retrieveCompetitions(ctx, tenantDB, compIDs)
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
-		comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
-		if err != nil {
-			return fmt.Errorf("error retrieveCompetition: %w", err)
+		if comp, ok := compMap[ps.CompetitionID]; ok {
+			psds = append(psds, PlayerScoreDetail{
+				CompetitionTitle: comp.Title,
+				Score:            ps.Score,
+			})
 		}
-		psds = append(psds, PlayerScoreDetail{
-			CompetitionTitle: comp.Title,
-			Score:            ps.Score,
-		})
+		return fmt.Errorf("error retrieveCompetition: %w", err)
+		// comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
+		// if err != nil {
+		// 	return fmt.Errorf("error retrieveCompetition: %w", err)
+		// }
+		// psds = append(psds, PlayerScoreDetail{
+		// 	CompetitionTitle: comp.Title,
+		// 	Score:            ps.Score,
+		// })
 	}
 
 	res := SuccessResult{
