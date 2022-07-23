@@ -1238,25 +1238,53 @@ func playerHandler(c echo.Context) error {
 	}
 	defer fl.Close()
 	pss := make([]PlayerScoreRow, 0, len(cs))
+
+	var args []interface{}
+	ph := []string{}
 	for _, c := range cs {
-		ps := PlayerScoreRow{}
-		if err := tenantDB.GetContext(
-			ctx,
-			&ps,
-			// 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
-			"SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1",
-			v.tenantID,
-			c.ID,
-			p.ID,
-		); err != nil {
-			// 行がない = スコアが記録されてない
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
-		}
-		pss = append(pss, ps)
+		args = append(args, c.ID)
+		ph = append(ph, "?")
 	}
+
+	placeholder := strings.Join(ph, ",")
+	p2 := []PlayerScoreRow{}
+	if err := tenantDB.GetContext(ctx, &p2, "SELECT * FROM player_score WHERE competition_id IN ("+placeholder+") ORDER BY row_num DESC", args...); err != nil {
+		return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
+	}
+
+	a := map[string][]PlayerScoreRow{}
+	for _, pp := range p2 {
+		if pp.TenantID != v.tenantID || pp.PlayerID != p.ID {
+			continue
+		}
+		//if _, ok := a[pp.ID]; !ok {
+		//	a[pp.ID] = []PlayerScoreRow{}
+		//}
+		a[pp.ID] = append(a[pp.ID], pp)
+	}
+	for _, v := range a {
+		pss = append(pss, v[0])
+	}
+
+	//for _, c := range cs {
+	//	ps := PlayerScoreRow{}
+	//	if err := tenantDB.GetContext(
+	//		ctx,
+	//		&ps,
+	//		// 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
+	//		"SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1",
+	//		v.tenantID,
+	//		c.ID,
+	//		p.ID,
+	//	); err != nil {
+	//		// 行がない = スコアが記録されてない
+	//		if errors.Is(err, sql.ErrNoRows) {
+	//			continue
+	//		}
+	//		return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
+	//	}
+	//	pss = append(pss, ps)
+	//}
 
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
