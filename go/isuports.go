@@ -1324,9 +1324,15 @@ func playerHandler(c echo.Context) error {
 	}
 
 	competitionTitles := make(map[string]string, len(cs))
+	args := make([]interface{}, 0, len(cs)+1)
+	var placeholder string
+	args = append(args, p.ID)
 	for _, c := range cs {
 		competitionTitles[c.ID] = c.Title
+		args = append(args, c.ID)
+		placeholder = placeholder + "?,"
 	}
+	placeholder = placeholder[:len(placeholder)-1]
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
 	mu, ok := tenantDBLocks[v.tenantID]
@@ -1340,26 +1346,46 @@ func playerHandler(c echo.Context) error {
 	// 	return fmt.Errorf("error flockByTenantID: %w", err)
 	// }
 	// defer fl.Close()
+
+	pssAll := []PlayerScoreRow{}
 	pss := make([]PlayerScoreRow, 0, len(cs))
-	for _, c := range cs {
-		ps := PlayerScoreRow{}
-		if err := tenantDB.GetContext(
-			ctx,
-			&ps,
-			// 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
-			"SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1",
-			v.tenantID,
-			c.ID,
-			p.ID,
-		); err != nil {
-			// 行がない = スコアが記録されてない
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, playerID=%s, %w", v.tenantID, c.ID, p.ID, err)
-		}
-		pss = append(pss, ps)
+	psMap := make(map[string]struct{}, len(cs))
+
+	err = tenantDB.SelectContext(ctx, &pssAll,
+		"SELECT * FROM player_score WHERE player_id = ? AND competition_id IN ("+placeholder+") ORDER BY row_num DESC",
+		args...,
+	)
+	if err != nil {
+		return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
 	}
+	for _, ps := range pssAll {
+		if _, ok := psMap[ps.CompetitionID]; ok {
+			continue
+		}
+
+		pss = append(pss, ps)
+		psMap[ps.CompetitionID] = struct{}{}
+	}
+
+	// for _, c := range cs {
+	// 	ps := PlayerScoreRow{}
+	// 	if err := tenantDB.GetContext(
+	// 		ctx,
+	// 		&ps,
+	// 		// 最後にCSVに登場したスコアを採用する = row_numが一番大きいもの
+	// 		"SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? AND player_id = ? ORDER BY row_num DESC LIMIT 1",
+	// 		v.tenantID,
+	// 		c.ID,
+	// 		p.ID,
+	// 	); err != nil {
+	// 		// 行がない = スコアが記録されてない
+	// 		if errors.Is(err, sql.ErrNoRows) {
+	// 			continue
+	// 		}
+	// 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, playerID=%s, %w", v.tenantID, c.ID, p.ID, err)
+	// 	}
+	// 	pss = append(pss, ps)
+	// }
 
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
