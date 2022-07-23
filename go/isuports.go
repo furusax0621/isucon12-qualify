@@ -1204,9 +1204,14 @@ func billingHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, res)
 }
 
+type PlayerScoreDetail2 struct {
+	CompetitionTitle string `db:"competition_title"`
+	Score            int64  `db:"score"`
+}
+
 type PlayerScoreDetail struct {
-	CompetitionTitle string `db,json:"competition_title"`
-	Score            int64  `db,json:"score"`
+	CompetitionTitle string `json:"competition_title"`
+	Score            int64  `json:"score"`
 }
 
 type PlayerHandlerResult struct {
@@ -1345,12 +1350,18 @@ func playerHandler(c echo.Context) error {
 	}
 	placeholder = strings.Join(ph, ",")
 
-	c3 := []PlayerScoreDetail{}
+	c3 := []PlayerScoreDetail2{}
 	if err := tenantDB.SelectContext(ctx, &c3, "select competition.title as competition_title, player_score.score from player_score join competition on player_score.competition_id = competition.id where competition.id IN ("+placeholder+")", args2...); err != nil {
 		return fmt.Errorf("error retrieveCompetition: %w", err)
 	}
 
-	psds = append(psds, c3...)
+	for _, c4 := range c3 {
+		psds = append(psds, PlayerScoreDetail{
+			Score:            c4.Score,
+			CompetitionTitle: c4.CompetitionTitle,
+		})
+	}
+
 	res := SuccessResult{
 		Status: true,
 		Data: PlayerHandlerResult{
