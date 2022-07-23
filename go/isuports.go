@@ -1339,26 +1339,37 @@ func playerHandler(c echo.Context) error {
 	//  updated_at BIGINT NOT NULL
 	//);
 
+	//psds := make([]PlayerScoreDetail, 0, len(pss))
+	////
+
+	//ph = []string{}
+	//var args2 []interface{}
+	//for _, ps := range pss {
+	//	args2 = append(args, ps.CompetitionID)
+	//	ph = append(ph, "?")
+	//}
+	//placeholder = strings.Join(ph, ",")
+
+	//c3 := []PlayerScoreDetail2{}
+	//if err := tenantDB.SelectContext(ctx, &c3, "select competition.title as competition_title, player_score.score from competition join player_score on player_score.competition_id = competition.id where competition.id IN ("+placeholder+")", args2...); err != nil {
+	//	return fmt.Errorf("error retrieveCompetition: %w", err)
+	//}
+
+	//for _, c4 := range c3 {
+	//	psds = append(psds, PlayerScoreDetail{
+	//		Score:            c4.Score,
+	//		CompetitionTitle: c4.CompetitionTitle,
+	//	})
+	//}
 	psds := make([]PlayerScoreDetail, 0, len(pss))
-	//
-
-	ph = []string{}
-	var args2 []interface{}
 	for _, ps := range pss {
-		args2 = append(args, ps.CompetitionID)
-		ph = append(ph, "?")
-	}
-	placeholder = strings.Join(ph, ",")
-
-	c3 := []PlayerScoreDetail2{}
-	if err := tenantDB.SelectContext(ctx, &c3, "select competition.title as competition_title, player_score.score from competition join player_score on player_score.competition_id = competition.id where competition.id IN ("+placeholder+")", args2...); err != nil {
-		return fmt.Errorf("error retrieveCompetition: %w", err)
-	}
-
-	for _, c4 := range c3 {
+		comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
+		if err != nil {
+			return fmt.Errorf("error retrieveCompetition: %w", err)
+		}
 		psds = append(psds, PlayerScoreDetail{
-			Score:            c4.Score,
-			CompetitionTitle: c4.CompetitionTitle,
+			CompetitionTitle: comp.Title,
+			Score:            ps.Score,
 		})
 	}
 
