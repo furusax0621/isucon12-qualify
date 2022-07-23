@@ -1719,6 +1719,7 @@ func initializeHandler(c echo.Context) error {
 	}
 
 	tenantDBs = make(map[int64]*sqlx.DB, 100)
+	tenantDBLocks = make(map[int64]*sync.Mutex)
 	for i := int64(1); i <= 100; i++ {
 		tenantDBs[i], err = connectToTenantDB(i)
 		if err != nil {
