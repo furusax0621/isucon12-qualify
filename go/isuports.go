@@ -96,6 +96,12 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	if _, err = db.Exec("CREATE INDEX idx_player_tenant_id ON player (tenant_id)"); err != nil {
 		return nil, fmt.Errorf("failed to create index 3: %w", err)
 	}
+	if _, err = db.Exec("CREATE INDEX idx_ps_id ON player_score(competition_id)"); err != nil {
+		return nil, fmt.Errorf("failed to create index 4: %w", err)
+	}
+	if _, err = db.Exec("CREATE INDEX idx_ps_id_row ON player_score(competition_id, row_num)"); err != nil {
+		return nil, fmt.Errorf("failed to create index 5: %w", err)
+	}
 	return db, nil
 }
 
