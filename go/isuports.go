@@ -1385,9 +1385,12 @@ func competitionRankingHandler(c echo.Context) error {
 			"WHERE NOT EXISTS (SELECT 1 FROM player_score sub WHERE player_score.player_id = sub.player_id AND player_score.row_num < sub.row_num) "+
 			") AS ps "+ // player_id ごとに最大のrow_numを持つレコードに絞る
 			"JOIN player AS p ON p.id = ps.player_id "+
-			"WHERE ps.tenant_id = ? AND ps.competition_id = ? ORDER BY ps.score DESC, ps.row_num ASC",
+			"WHERE ps.tenant_id = ? AND ps.competition_id = ? "+
+			"ORDER BY ps.score DESC, ps.row_num ASC "+
+			"OFFSET ? LIMIT 100",
 		tenant.ID,
 		competitionID,
+		rankAfter,
 	); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 	}
@@ -1415,18 +1418,18 @@ func competitionRankingHandler(c echo.Context) error {
 	// })
 	pagedRanks := make([]CompetitionRank, 0, 100)
 	for i, rank := range ranks {
-		if int64(i) < rankAfter {
-			continue
-		}
+		// if int64(i) < rankAfter {
+		// 	continue
+		// }
 		pagedRanks = append(pagedRanks, CompetitionRank{
 			Rank:              int64(i + 1),
 			Score:             rank.Score,
 			PlayerID:          rank.PlayerID,
 			PlayerDisplayName: rank.PlayerDisplayName,
 		})
-		if len(pagedRanks) >= 100 {
-			break
-		}
+		// if len(pagedRanks) >= 100 {
+		// 	break
+		// }
 	}
 
 	res := SuccessResult{
