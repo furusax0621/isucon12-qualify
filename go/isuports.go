@@ -1287,13 +1287,11 @@ func playerHandler(c echo.Context) error {
 	//}
 
 	psds := make([]PlayerScoreDetail, 0, len(pss))
+
 	for _, ps := range pss {
 
 		var c CompetitionRow
 		if err := tenantDB.GetContext(ctx, &c, "SELECT * FROM competition WHERE id = ?", ps.CompetitionID); err != nil {
-			return fmt.Errorf("error Select competition: id=%s, %w", ps.CompetitionID, err)
-		}
-		if err != nil {
 			return fmt.Errorf("error retrieveCompetition: %w", err)
 		}
 		psds = append(psds, PlayerScoreDetail{
