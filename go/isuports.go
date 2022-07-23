@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	_ "net/http/pprof"
@@ -50,7 +51,8 @@ var (
 
 	sqliteDriverName = "sqlite3"
 
-	tenantDBs map[int64]*sqlx.DB
+	tenantDBs     map[int64]*sqlx.DB
+	tenantDBLocks map[int64]*sync.Mutex
 )
 
 type JSONSerializer struct{}
@@ -114,6 +116,8 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	if _, err = db.Exec("CREATE INDEX idx_player_tenant_id ON player (tenant_id)"); err != nil {
 		return nil, fmt.Errorf("failed to create index 3: %w", err)
 	}
+	// 排他ロック用のMutexを入れる
+	tenantDBLocks[id] = &sync.Mutex{}
 	return db, nil
 }
 
@@ -1448,11 +1452,17 @@ func competitionRankingHandler(c echo.Context) error {
 	}
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
-	fl, err := flockByTenantID(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error flockByTenantID: %w", err)
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer fl.Close()
+	mu.Lock()
+	defer mu.Unlock()
+	// fl, err := flockByTenantID(v.tenantID)
+	// if err != nil {
+	// 	return fmt.Errorf("error flockByTenantID: %w", err)
+	// }
+	// defer fl.Close()
 	pss := []struct {
 		PlayerID    string `db:"player_id"`
 		Score       int64  `db:"score"`
