@@ -13,10 +13,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
@@ -47,6 +48,8 @@ var (
 	adminDB *sqlx.DB
 
 	sqliteDriverName = "sqlite3"
+
+	tenantDBs map[int64]*sqlx.DB
 )
 
 // 環境変数を取得する、なければデフォルト値を返す
@@ -83,6 +86,16 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open tenant DB: %w", err)
 	}
+
+	if _, err = db.Exec("CREATE INDEX idx_player_score_tenant_id_competition_id ON player_score (tenant_id, competition_id)"); err != nil {
+		return nil, fmt.Errorf("failed to create index 1: %w", err)
+	}
+	if _, err = db.Exec("CREATE INDEX idx_competition_tenant_id ON competition (tenant_id)"); err != nil {
+		return nil, fmt.Errorf("failed to create index 2: %w", err)
+	}
+	if _, err = db.Exec("CREATE INDEX idx_player_tenant_id ON player (tenant_id)"); err != nil {
+		return nil, fmt.Errorf("failed to create index 3: %w", err)
+	}
 	return db, nil
 }
 
@@ -94,6 +107,13 @@ func createTenantDB(id int64) error {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to exec sqlite3 %s < %s, out=%s: %w", p, tenantDBSchemaFilePath, string(out), err)
 	}
+
+	var err error
+	tenantDBs[id], err = connectToTenantDB(id)
+	if err != nil {
+		return fmt.Errorf("failed to connect new sqlite: %w", err)
+	}
+
 	return nil
 }
 
@@ -133,10 +153,19 @@ func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
 
 // Run は cmd/isuports/main.go から呼ばれるエントリーポイントです
 func Run() {
+	defer func() {
+		for _, db := range tenantDBs {
+			db.Close()
+		}
+	}()
+
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
 
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 	var (
 		sqlLogger io.Closer
 		err       error
@@ -672,11 +701,11 @@ func tenantsBillingHandler(c echo.Context) error {
 				Name:        t.Name,
 				DisplayName: t.DisplayName,
 			}
-			tenantDB, err := connectToTenantDB(t.ID)
-			if err != nil {
-				return fmt.Errorf("failed to connectToTenantDB: %w", err)
+			tenantDB, ok := tenantDBs[t.ID]
+			if !ok {
+				return fmt.Errorf("failed to connectToTenantDB: %d", t.ID)
 			}
-			defer tenantDB.Close()
+
 			cs := []CompetitionRow{}
 			if err := tenantDB.SelectContext(
 				ctx,
@@ -733,11 +762,10 @@ func playersListHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error connectToTenantDB: %w", err)
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	var pls []PlayerRow
 	if err := tenantDB.SelectContext(
@@ -779,11 +807,10 @@ func playersAddHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	params, err := c.FormParams()
 	if err != nil {
@@ -842,11 +869,10 @@ func playerDisqualifiedHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	playerID := c.Param("player_id")
 
@@ -902,11 +928,10 @@ func competitionsAddHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	title := c.FormValue("title")
 
@@ -948,11 +973,10 @@ func competitionFinishHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	id := c.Param("competition_id")
 	if id == "" {
@@ -998,11 +1022,10 @@ func competitionScoreHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	competitionID := c.Param("competition_id")
 	if competitionID == "" {
@@ -1143,11 +1166,10 @@ func billingHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	cs := []CompetitionRow{}
 	if err := tenantDB.SelectContext(
@@ -1200,11 +1222,10 @@ func playerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role player required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	if err := authorizePlayer(ctx, tenantDB, v.playerID); err != nil {
 		return err
@@ -1364,11 +1385,10 @@ func competitionRankingHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role player required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	if err := authorizePlayer(ctx, tenantDB, v.playerID); err != nil {
 		return err
@@ -1419,13 +1439,24 @@ func competitionRankingHandler(c echo.Context) error {
 		return fmt.Errorf("error flockByTenantID: %w", err)
 	}
 	defer fl.Close()
-	pss := []PlayerScoreRow{}
+	pss := []struct {
+		PlayerID    string `db:"player_id"`
+		Score       int64  `db:"score"`
+		RowNum      int64  `db:"row_num"`
+		DisplayName string `db:"display_name"`
+	}{}
+
 	if err := tenantDB.SelectContext(
 		ctx,
 		&pss,
-		"SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? ORDER BY row_num DESC",
+		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num FROM player_score AS ps "+
+			"JOIN player AS p ON p.id = ps.player_id "+
+			"WHERE ps.tenant_id = ? AND ps.competition_id = ? "+
+			"ORDER BY ps.score DESC, ps.row_num ASC "+
+			"LIMIT 100 OFFSET ? ",
 		tenant.ID,
 		competitionID,
+		rankAfter,
 	); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 	}
@@ -1438,37 +1469,33 @@ func competitionRankingHandler(c echo.Context) error {
 			continue
 		}
 		scoredPlayerSet[ps.PlayerID] = struct{}{}
-		p, err := retrievePlayer(ctx, tenantDB, ps.PlayerID)
-		if err != nil {
-			return fmt.Errorf("error retrievePlayer: %w", err)
-		}
 		ranks = append(ranks, CompetitionRank{
 			Score:             ps.Score,
-			PlayerID:          p.ID,
-			PlayerDisplayName: p.DisplayName,
+			PlayerID:          ps.PlayerID,
+			PlayerDisplayName: ps.DisplayName,
 			RowNum:            ps.RowNum,
 		})
 	}
-	sort.Slice(ranks, func(i, j int) bool {
-		if ranks[i].Score == ranks[j].Score {
-			return ranks[i].RowNum < ranks[j].RowNum
-		}
-		return ranks[i].Score > ranks[j].Score
-	})
+	// sort.Slice(ranks, func(i, j int) bool {
+	// 	if ranks[i].Score == ranks[j].Score {
+	// 		return ranks[i].RowNum < ranks[j].RowNum
+	// 	}
+	// 	return ranks[i].Score > ranks[j].Score
+	// })
 	pagedRanks := make([]CompetitionRank, 0, 100)
 	for i, rank := range ranks {
-		if int64(i) < rankAfter {
-			continue
-		}
+		// if int64(i) < rankAfter {
+		// 	continue
+		// }
 		pagedRanks = append(pagedRanks, CompetitionRank{
 			Rank:              int64(i + 1),
 			Score:             rank.Score,
 			PlayerID:          rank.PlayerID,
 			PlayerDisplayName: rank.PlayerDisplayName,
 		})
-		if len(pagedRanks) >= 100 {
-			break
-		}
+		// if len(pagedRanks) >= 100 {
+		// 	break
+		// }
 	}
 
 	res := SuccessResult{
@@ -1503,11 +1530,10 @@ func playerCompetitionsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role player required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	if err := authorizePlayer(ctx, tenantDB, v.playerID); err != nil {
 		return err
@@ -1527,11 +1553,10 @@ func organizerCompetitionsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "role organizer required")
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return err
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	defer tenantDB.Close()
 
 	return competitionsHandler(c, v, tenantDB)
 }
@@ -1618,10 +1643,11 @@ func meHandler(c echo.Context) error {
 		})
 	}
 
-	tenantDB, err := connectToTenantDB(v.tenantID)
-	if err != nil {
-		return fmt.Errorf("error connectToTenantDB: %w", err)
+	tenantDB, ok := tenantDBs[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+
 	ctx := context.Background()
 	p, err := retrievePlayer(ctx, tenantDB, v.playerID)
 	if err != nil {
@@ -1667,6 +1693,15 @@ func initializeHandler(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("error exec.Command: %s %e", string(out), err)
 	}
+
+	tenantDBs = make(map[int64]*sqlx.DB, 100)
+	for i := int64(1); i <= 100; i++ {
+		tenantDBs[i], err = connectToTenantDB(i)
+		if err != nil {
+			return fmt.Errorf("failed to load sqlite %d: %w", i, err)
+		}
+	}
+
 	res := InitializeHandlerResult{
 		Lang: "go",
 	}
