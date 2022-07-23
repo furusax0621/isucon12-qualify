@@ -148,7 +148,7 @@ func createTenantDB(id int64) error {
 func dispenseID(ctx context.Context) (string, error) {
 	idGenerator.mu.Lock()
 	defer idGenerator.mu.Unlock()
-	idGenerator.lastID++
+	idGenerator.lastID += 100
 	return fmt.Sprintf("%x", idGenerator.lastID), nil
 	// var id int64
 	// var lastErr error
@@ -1748,7 +1748,10 @@ func initializeHandler(c echo.Context) error {
 
 	tenantDBs = make(map[int64]*sqlx.DB, 100)
 	tenantDBLocks = make(map[int64]*sync.Mutex)
-	idGenerator = IDGenerator{lastID: 100}
+	idGenerator = IDGenerator{
+		mu:     &sync.Mutex{},
+		lastID: 100,
+	}
 	for i := int64(1); i <= 100; i++ {
 		tenantDBs[i], err = connectToTenantDB(i)
 		if err != nil {
