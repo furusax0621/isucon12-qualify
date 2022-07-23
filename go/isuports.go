@@ -51,7 +51,7 @@ var (
 	sqliteDriverName = "sqlite3"
 
 	tenantDBs     map[int64]*sqlx.DB
-	tenantDBLocks map[int64]*sync.Mutex
+	tenantDBLocks map[int64]*sync.RWMutex
 	idGenerator   IDGenerator
 )
 
@@ -122,7 +122,7 @@ func connectToTenantDB(id int64) (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to create index 3: %w", err)
 	}
 	// 排他ロック用のMutexを入れる
-	tenantDBLocks[id] = &sync.Mutex{}
+	tenantDBLocks[id] = &sync.RWMutex{}
 	return db, nil
 }
 
@@ -652,8 +652,8 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	if !ok {
 		return nil, fmt.Errorf("error tenantDB not found: %d", tenantID)
 	}
-	mu.Lock()
-	defer mu.Unlock()
+	mu.RLock()
+	defer mu.RUnlock()
 	// fl, err := flockByTenantID(tenantID)
 	// if err != nil {
 	// 	return nil, fmt.Errorf("error flockByTenantID: %w", err)
@@ -1343,8 +1343,8 @@ func playerHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
 	}
-	mu.Lock()
-	defer mu.Unlock()
+	mu.RLock()
+	defer mu.RUnlock()
 	// fl, err := flockByTenantID(v.tenantID)
 	// if err != nil {
 	// 	return fmt.Errorf("error flockByTenantID: %w", err)
@@ -1484,8 +1484,8 @@ func competitionRankingHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
-	mu.Lock()
-	defer mu.Unlock()
+	mu.RLock()
+	defer mu.RUnlock()
 	// fl, err := flockByTenantID(v.tenantID)
 	// if err != nil {
 	// 	return fmt.Errorf("error flockByTenantID: %w", err)
@@ -1747,7 +1747,7 @@ func initializeHandler(c echo.Context) error {
 	}
 
 	tenantDBs = make(map[int64]*sqlx.DB, 100)
-	tenantDBLocks = make(map[int64]*sync.Mutex)
+	tenantDBLocks = make(map[int64]*sync.RWMutex)
 	idGenerator = IDGenerator{
 		mu:     &sync.Mutex{},
 		lastID: 100,
