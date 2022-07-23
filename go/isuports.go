@@ -1351,7 +1351,7 @@ func playerHandler(c echo.Context) error {
 	placeholder = strings.Join(ph, ",")
 
 	c3 := []PlayerScoreDetail2{}
-	if err := tenantDB.SelectContext(ctx, &c3, "select competition.title as competition_title, player_score.score from player_score join competition on player_score.competition_id = competition.id where competition.id IN ("+placeholder+")", args2...); err != nil {
+	if err := tenantDB.SelectContext(ctx, &c3, "select competition.title as competition_title, player_score.score from competition join player_score on player_score.competition_id = competition.id where competition.id IN ("+placeholder+")", args2...); err != nil {
 		return fmt.Errorf("error retrieveCompetition: %w", err)
 	}
 
