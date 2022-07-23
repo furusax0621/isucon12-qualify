@@ -1451,14 +1451,16 @@ func competitionRankingHandler(c echo.Context) error {
 		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num FROM player_score AS ps "+
 			"JOIN player AS p ON p.id = ps.player_id "+
 			"WHERE ps.tenant_id = ? AND ps.competition_id = ? "+
-			"ORDER BY ps.score DESC, ps.row_num ASC "+
-			"LIMIT 100 OFFSET ? ",
+			"ORDER BY ps.score DESC, ps.row_num ASC ",
+		//		"LIMIT 100 OFFSET ? ",
 		tenant.ID,
 		competitionID,
-		rankAfter,
+		//		rankAfter,
 	); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 	}
+	pss = pss[rankAfter : rankAfter+100]
+
 	ranks := make([]CompetitionRank, 0, len(pss))
 	scoredPlayerSet := make(map[string]struct{}, len(pss))
 	for _, ps := range pss {
