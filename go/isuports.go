@@ -1044,13 +1044,13 @@ func competitionScoreHandler(c echo.Context) error {
 		return fmt.Errorf("error flockByTenantID: %w", err)
 	}
 	defer fl.Close()
-	csvHeaders := []string{
-		"player_id", "score",
-	}
+	// csvHeaders := []string{
+	// 	"player_id", "score",
+	// }
 	dec := headercsv.NewDecoder(f)
-	if err := dec.SetHeader(csvHeaders); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid CSV headers")
-	}
+	// if err := dec.SetHeader(csvHeaders); err != nil {
+	// 	return echo.NewHTTPError(http.StatusBadRequest, "invalid CSV headers")
+	// }
 	data := []struct {
 		PlayerID string `csv:"player_id"`
 		Score    string `csv:"score"`
