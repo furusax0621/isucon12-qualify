@@ -1295,8 +1295,9 @@ func playerHandler(c echo.Context) error {
 				CompetitionTitle: comp.Title,
 				Score:            ps.Score,
 			})
+		} else {
+			return fmt.Errorf("error retrieveCompetition: %w", err)
 		}
-		return fmt.Errorf("error retrieveCompetition: %w", err)
 		// comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
 		// if err != nil {
 		// 	return fmt.Errorf("error retrieveCompetition: %w", err)
