@@ -757,11 +757,13 @@ func tenantsBillingHandler(c echo.Context) error {
 				return fmt.Errorf("failed to Select competition: %w", err)
 			}
 			for _, comp := range cs {
-				report, err := billingReportByCompetition(ctx, tenantDB, t.ID, comp.ID)
-				if err != nil {
-					return fmt.Errorf("failed to billingReportByCompetition: %w", err)
+				if comp.FinishedAt.Valid {
+					report, err := billingReportByCompetition(ctx, tenantDB, t.ID, comp.ID)
+					if err != nil {
+						return fmt.Errorf("failed to billingReportByCompetition: %w", err)
+					}
+					tb.BillingYen += report.BillingYen
 				}
-				tb.BillingYen += report.BillingYen
 			}
 			tenantBillings = append(tenantBillings, tb)
 			return nil
