@@ -1370,11 +1370,19 @@ func competitionRankingHandler(c echo.Context) error {
 		return fmt.Errorf("error flockByTenantID: %w", err)
 	}
 	defer fl.Close()
-	pss := []PlayerScoreRow{}
+	pss := []struct {
+		PlayerID    string `db:"player_id"`
+		Score       int64  `db:"score"`
+		RowNum      int64  `db:"row_num"`
+		DisplayName string `db:"display_name"`
+	}{}
+
 	if err := tenantDB.SelectContext(
 		ctx,
 		&pss,
-		"SELECT * FROM player_score WHERE tenant_id = ? AND competition_id = ? ORDER BY row_num DESC",
+		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num FROM player_score AS ps "+
+			"JOIN player AS p ON p.id = ps.player_id "+
+			"WHERE ps.tenant_id = ? AND ps.competition_id = ? ORDER BY ps.row_num DESC",
 		tenant.ID,
 		competitionID,
 	); err != nil {
@@ -1389,14 +1397,10 @@ func competitionRankingHandler(c echo.Context) error {
 			continue
 		}
 		scoredPlayerSet[ps.PlayerID] = struct{}{}
-		p, err := retrievePlayer(ctx, tenantDB, ps.PlayerID)
-		if err != nil {
-			return fmt.Errorf("error retrievePlayer: %w", err)
-		}
 		ranks = append(ranks, CompetitionRank{
 			Score:             ps.Score,
-			PlayerID:          p.ID,
-			PlayerDisplayName: p.DisplayName,
+			PlayerID:          ps.PlayerID,
+			PlayerDisplayName: ps.DisplayName,
 			RowNum:            ps.RowNum,
 		})
 	}
