@@ -1225,9 +1225,22 @@ func billingHandler(c echo.Context) error {
 	}
 	tbrs := make([]BillingReport, 0, len(cs))
 	for _, comp := range cs {
-		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, comp.ID)
-		if err != nil {
-			return fmt.Errorf("error billingReportByCompetition: %w", err)
+		var report *BillingReport
+		if comp.FinishedAt.Valid {
+			report, err = billingReportByCompetition(ctx, tenantDB, v.tenantID, comp.ID)
+			if err != nil {
+				return fmt.Errorf("error billingReportByCompetition: %w", err)
+			}
+		} else {
+			report = &BillingReport{
+				CompetitionID:     comp.ID,
+				CompetitionTitle:  comp.Title,
+				PlayerCount:       0,
+				VisitorCount:      0,
+				BillingPlayerYen:  0,
+				BillingVisitorYen: 0,
+				BillingYen:        0,
+			}
 		}
 		tbrs = append(tbrs, *report)
 	}
