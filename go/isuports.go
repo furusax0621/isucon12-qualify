@@ -1459,7 +1459,7 @@ func competitionRankingHandler(c echo.Context) error {
 	); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 	}
-	pss = pss[rankAfter : rankAfter+100]
+	pss = pss[rankAfter:min(int(rankAfter+100), len(pss)-1)]
 
 	ranks := make([]CompetitionRank, 0, len(pss))
 	scoredPlayerSet := make(map[string]struct{}, len(pss))
@@ -1511,6 +1511,15 @@ func competitionRankingHandler(c echo.Context) error {
 		},
 	}
 	return c.JSON(http.StatusOK, res)
+}
+func min(arg ...int) int {
+	min := arg[0]
+	for _, x := range arg {
+		if min > x {
+			min = x
+		}
+	}
+	return min
 }
 
 type CompetitionsHandlerResult struct {
