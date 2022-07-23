@@ -873,6 +873,12 @@ func playersAddHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	params, err := c.FormParams()
 	if err != nil {
@@ -935,6 +941,12 @@ func playerDisqualifiedHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	playerID := c.Param("player_id")
 
@@ -995,6 +1007,13 @@ func competitionsAddHandler(c echo.Context) error {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
 
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+
 	title := c.FormValue("title")
 
 	now := time.Now().Unix()
@@ -1039,6 +1058,12 @@ func competitionFinishHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	id := c.Param("competition_id")
 	if id == "" {
@@ -1307,6 +1332,13 @@ func playerHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	if err := authorizePlayer(ctx, tenantDB, v.playerID); err != nil {
 		return err
@@ -1338,13 +1370,6 @@ func playerHandler(c echo.Context) error {
 		competitionTitles[c.ID] = c.Title
 	}
 
-	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
-	mu, ok := tenantDBLocks[v.tenantID]
-	if !ok {
-		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
-	}
-	mu.Lock()
-	defer mu.Unlock()
 	// fl, err := flockByTenantID(v.tenantID)
 	// if err != nil {
 	// 	return fmt.Errorf("error flockByTenantID: %w", err)
@@ -1435,6 +1460,13 @@ func competitionRankingHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	if err := authorizePlayer(ctx, tenantDB, v.playerID); err != nil {
 		return err
@@ -1479,13 +1511,6 @@ func competitionRankingHandler(c echo.Context) error {
 		}
 	}
 
-	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
-	mu, ok := tenantDBLocks[v.tenantID]
-	if !ok {
-		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
-	}
-	mu.Lock()
-	defer mu.Unlock()
 	// fl, err := flockByTenantID(v.tenantID)
 	// if err != nil {
 	// 	return fmt.Errorf("error flockByTenantID: %w", err)
@@ -1586,6 +1611,13 @@ func playerCompetitionsHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	if err := authorizePlayer(ctx, tenantDB, v.playerID); err != nil {
 		return err
@@ -1699,6 +1731,13 @@ func meHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	ctx := context.Background()
 	p, err := retrievePlayer(ctx, tenantDB, v.playerID)
