@@ -1064,7 +1064,7 @@ func competitionScoreHandler(c echo.Context) error {
 	for i := len(data); i >= 0; i-- {
 		row := data[i]
 		// 既に追加済みだったら無視する！
-		if _, ok := players[data[i].PlayerID]; ok {
+		if _, ok := players[row.PlayerID]; ok {
 			continue
 		}
 		if _, err := retrievePlayer(ctx, tenantDB, row.PlayerID); err != nil {
@@ -1099,6 +1099,7 @@ func competitionScoreHandler(c echo.Context) error {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		})
+		players[row.PlayerID] = true
 	}
 
 	if _, err := tenantDB.ExecContext(
