@@ -15,5 +15,3 @@ services:
       - /home/isucon/initial_data:/home/isucon/initial_data
       - /home/isucon/tmp:/home/isucon/tmp
     init: true
-    ports:
-      - "127.0.0.1:6060:6060"

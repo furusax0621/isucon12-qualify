@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	_ "net/http/pprof"
-
 	"github.com/go-sql-driver/mysql"
 	"github.com/goccy/go-json"
 	"github.com/jmoiron/sqlx"
@@ -191,13 +189,10 @@ func Run() {
 	}()
 
 	e := echo.New()
-	e.Debug = true
-	e.Logger.SetLevel(log.DEBUG)
+	e.Debug = false
+	e.Logger.SetLevel(log.OFF)
 	e.JSONSerializer = &JSONSerializer{}
 
-	go func() {
-		http.ListenAndServe("localhost:6060", nil)
-	}()
 	var (
 		sqlLogger io.Closer
 		err       error
