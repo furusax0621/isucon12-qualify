@@ -52,7 +52,13 @@ var (
 
 	tenantDBs     map[int64]*sqlx.DB
 	tenantDBLocks map[int64]*sync.Mutex
+	idGenerator   IDGenerator
 )
+
+type IDGenerator struct {
+	mu     *sync.Mutex
+	lastID int
+}
 
 type JSONSerializer struct{}
 
@@ -140,28 +146,32 @@ func createTenantDB(id int64) error {
 
 // システム全体で一意なIDを生成する
 func dispenseID(ctx context.Context) (string, error) {
-	var id int64
-	var lastErr error
-	for i := 0; i < 100; i++ {
-		var ret sql.Result
-		ret, err := adminDB.ExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (?);", "a")
-		if err != nil {
-			if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
-				lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
-				continue
-			}
-			return "", fmt.Errorf("error REPLACE INTO id_generator: %w", err)
-		}
-		id, err = ret.LastInsertId()
-		if err != nil {
-			return "", fmt.Errorf("error ret.LastInsertId: %w", err)
-		}
-		break
-	}
-	if id != 0 {
-		return fmt.Sprintf("%x", id), nil
-	}
-	return "", lastErr
+	idGenerator.mu.Lock()
+	defer idGenerator.mu.Unlock()
+	idGenerator.lastID += 100
+	return fmt.Sprintf("%x", idGenerator.lastID), nil
+	// var id int64
+	// var lastErr error
+	// for i := 0; i < 100; i++ {
+	// 	var ret sql.Result
+	// 	ret, err := adminDB.ExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (?);", "a")
+	// 	if err != nil {
+	// 		if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
+	// 			lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+	// 			continue
+	// 		}
+	// 		return "", fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+	// 	}
+	// 	id, err = ret.LastInsertId()
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("error ret.LastInsertId: %w", err)
+	// 	}
+	// 	break
+	// }
+	// if id != 0 {
+	// 	return fmt.Sprintf("%x", id), nil
+	// }
+	// return "", lastErr
 }
 
 // 全APIにCache-Control: privateを設定する
@@ -1738,6 +1748,10 @@ func initializeHandler(c echo.Context) error {
 
 	tenantDBs = make(map[int64]*sqlx.DB, 100)
 	tenantDBLocks = make(map[int64]*sync.Mutex)
+	idGenerator = IDGenerator{
+		mu:     &sync.Mutex{},
+		lastID: 100,
+	}
 	for i := int64(1); i <= 100; i++ {
 		tenantDBs[i], err = connectToTenantDB(i)
 		if err != nil {
