@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 	"github.com/jmoiron/sqlx"
@@ -137,6 +139,9 @@ func Run() {
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
 
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 	var (
 		sqlLogger io.Closer
 		err       error
