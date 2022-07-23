@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1382,9 +1381,12 @@ func competitionRankingHandler(c echo.Context) error {
 		&pss,
 		"SELECT ps.player_id, ps.score, p.display_name, ps.row_num FROM player_score AS ps "+
 			"JOIN player AS p ON p.id = ps.player_id "+
-			"WHERE ps.tenant_id = ? AND ps.competition_id = ? ORDER BY ps.row_num DESC",
+			"WHERE ps.tenant_id = ? AND ps.competition_id = ? "+
+			"ORDER BY ps.score DESC, ps.row_num ASC "+
+			"LIMIT 100 OFFSET ? ",
 		tenant.ID,
 		competitionID,
+		rankAfter,
 	); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, competitionID=%s, %w", tenant.ID, competitionID, err)
 	}
@@ -1404,26 +1406,26 @@ func competitionRankingHandler(c echo.Context) error {
 			RowNum:            ps.RowNum,
 		})
 	}
-	sort.Slice(ranks, func(i, j int) bool {
-		if ranks[i].Score == ranks[j].Score {
-			return ranks[i].RowNum < ranks[j].RowNum
-		}
-		return ranks[i].Score > ranks[j].Score
-	})
+	// sort.Slice(ranks, func(i, j int) bool {
+	// 	if ranks[i].Score == ranks[j].Score {
+	// 		return ranks[i].RowNum < ranks[j].RowNum
+	// 	}
+	// 	return ranks[i].Score > ranks[j].Score
+	// })
 	pagedRanks := make([]CompetitionRank, 0, 100)
 	for i, rank := range ranks {
-		if int64(i) < rankAfter {
-			continue
-		}
+		// if int64(i) < rankAfter {
+		// 	continue
+		// }
 		pagedRanks = append(pagedRanks, CompetitionRank{
 			Rank:              int64(i + 1),
 			Score:             rank.Score,
 			PlayerID:          rank.PlayerID,
 			PlayerDisplayName: rank.PlayerDisplayName,
 		})
-		if len(pagedRanks) >= 100 {
-			break
-		}
+		// if len(pagedRanks) >= 100 {
+		// 	break
+		// }
 	}
 
 	res := SuccessResult{
