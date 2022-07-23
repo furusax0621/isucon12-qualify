@@ -873,6 +873,12 @@ func playersAddHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	params, err := c.FormParams()
 	if err != nil {
@@ -935,6 +941,12 @@ func playerDisqualifiedHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	playerID := c.Param("player_id")
 
@@ -995,6 +1007,13 @@ func competitionsAddHandler(c echo.Context) error {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
 
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+
 	title := c.FormValue("title")
 
 	now := time.Now().Unix()
@@ -1039,6 +1058,12 @@ func competitionFinishHandler(c echo.Context) error {
 	if !ok {
 		return fmt.Errorf("error connectToTenantDB: %d", v.tenantID)
 	}
+	mu, ok := tenantDBLocks[v.tenantID]
+	if !ok {
+		return fmt.Errorf("error tenantDB not found: %d", v.tenantID)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	id := c.Param("competition_id")
 	if id == "" {
