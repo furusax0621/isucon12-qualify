@@ -1248,7 +1248,7 @@ func playerHandler(c echo.Context) error {
 
 	placeholder := strings.Join(ph, ",")
 	p2 := []PlayerScoreRow{}
-	if err := tenantDB.GetContext(ctx, &p2, "SELECT * FROM player_score WHERE competition_id IN ("+placeholder+") ORDER BY row_num DESC", args...); err != nil {
+	if err := tenantDB.SelectContext(ctx, &p2, "SELECT * FROM player_score WHERE competition_id IN ("+placeholder+") ORDER BY row_num DESC", args...); err != nil {
 		return fmt.Errorf("error Select player_score: tenantID=%d, playerID=%s, %w", v.tenantID, p.ID, err)
 	}
 
