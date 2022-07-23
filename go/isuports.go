@@ -1061,7 +1061,7 @@ func competitionScoreHandler(c echo.Context) error {
 	playerScoreRows := []PlayerScoreRow{}
 	players := map[string]any{}
 	// 読み取った全行を逆順に処理
-	for i := len(data); i >= 0; i-- {
+	for i := len(data) - 1; i >= 0; i-- {
 		row := data[i]
 		// 既に追加済みだったら無視する！
 		if _, ok := players[row.PlayerID]; ok {
